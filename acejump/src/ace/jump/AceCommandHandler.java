@@ -4,7 +4,6 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -53,7 +52,7 @@ public class AceCommandHandler extends AbstractHandler {
 		
         offsetForCharacter.clear();
 		add_paint_listener__to__draw_jump_target_markers(st, sv);
-		
+
 		final Shell shell = new Shell(Display.getDefault(), SWT.MODELESS);
         shell.setBounds(1, 1, 1, 1);
 
@@ -97,7 +96,6 @@ public class AceCommandHandler extends AbstractHandler {
 			return;
 		
 		PaintListener pl = new PaintListener() {
-			char letterCounter;
 			@Override
 			public void paintControl(PaintEvent e) {
 				if (drawNow) {
@@ -107,58 +105,60 @@ public class AceCommandHandler extends AbstractHandler {
 
 			private void draw_jump_target_markers(final StyledText st, final ISourceViewer sv, GC gc) {
                 int start = ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(sv.getTopIndexStartOffset());
-                int end = sv.getBottomIndexEndOffset();
-				end = ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(end);
+				int end = ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(sv.getBottomIndexEndOffset());
 
-				String src = st.getText(start, end).toLowerCase(Locale.ENGLISH);
-				int i = 0;
+				String src = st.getText(start, end);
 				int len = st.getCharCount();
-				letterCounter = 'a';
-				char current = Character.toLowerCase(jumpTargetChar);
-				while (true) {
-					if (isMatch(src, i, current)) {
+
+                int caretOffset =  ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(st.getCaretOffset());
+
+				char marker = 'a';
+                for (int i = 0; i < src.length() && marker <= 'z'; ++i) {
+                    if (caretOffset == start + i)
+                        continue;
+
+					if (isMatch(src, i, jumpTargetChar)) {
 						int off = start + i;
 						if (off >= len) {
 							break;
 						}
-						drawNextCharAt(off, gc, st);
-						if (letterCounter - 1 == 'z') {
-							break;
-						}
+
+						drawNextCharAt(off, gc, st, marker);
+                        marker++;
 					}
-					i++;
-					if (i >= src.length())
-						break;
 				}
 			}
 
 			private boolean isMatch(String src, int i, char match) {
 				char c = src.charAt(i);
-				if (c == match) {
-					if (i == 0)
-						return true;
-					if (Character.isLetter(c) == false)
-						return true;
+				if (Character.toLowerCase(c) != Character.toLowerCase(match)) {
+                    return false;
+                }
+
+				if (i > 0) {
 					char prev = src.charAt(i - 1);
-					if (Character.isLetter(prev))
-						return false;
-					return true;
+					if (!Character.isLetter(prev))
+						return true;
+
+					return Character.isUpperCase(c) && Character.isLowerCase(prev);
 				}
+
 				return false;
 			}
 
 
-			private void drawNextCharAt(int offset, GC gc, StyledText st) {
-				String word = Character.toString(letterCounter);
-				offsetForCharacter.put(letterCounter, offset);
-				letterCounter++;
+			private void drawNextCharAt(int offset, GC gc, StyledText st, char marker) {
+				String word = Character.toString(marker);
+				offsetForCharacter.put(marker, offset);
 
 				Rectangle bounds = st.getTextBounds(offset, offset);
 				gc.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_WHITE));
 				Point textExtent = gc.textExtent(word);
+
 				int ex = 0;
 				int dex = 2 * ex;
-				gc.fillRoundRectangle(bounds.x - ex, bounds.y - ex, textExtent.x + dex, textExtent.y + dex, 4, 4);
+				gc.fillRoundRectangle(bounds.x - ex, bounds.y - ex, textExtent.x + dex, textExtent.y + dex, 0, 0);
+
 				gc.setForeground(Display.getDefault().getSystemColor(SWT.COLOR_RED));
 				gc.drawString(word, bounds.x, bounds.y, true);
 			}
