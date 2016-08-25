@@ -36,6 +36,9 @@ public class AceCommandHandler extends AbstractHandler {
 	private boolean drawNow = false;
 	private char jumpTargetChar;
 	private Map<Character, Integer> offsetForCharacter = new HashMap<Character, Integer>();
+
+    public static final char INFINITE_JUMP_CHAR = '/';
+    private static final String MARKER_CHARSET = "asdfjeghiybcmnopqrtuvwkl";
 	
 	@Override
 	public Object execute(ExecutionEvent event) throws ExecutionException {
@@ -103,37 +106,34 @@ public class AceCommandHandler extends AbstractHandler {
                 }
 			}
 
-			private void draw_jump_target_markers(final StyledText st, final ISourceViewer sv, GC gc) {
+            List<Integer> get_offsets_of_char(final StyledText st, final ISourceViewer sv) {
+                List<Integer> offsets = new ArrayList<Integer>();
+
                 int start = ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(sv.getTopIndexStartOffset());
 				int end = ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(sv.getBottomIndexEndOffset());
-
 				String src = st.getText(start, end);
-				int len = st.getCharCount();
-
                 int caretOffset =  ((ITextViewerExtension5) sv).modelOffset2WidgetOffset(st.getCaretOffset());
 
-				char marker = 'a';
-                for (int i = 0; i < src.length() && marker <= 'z'; ++i) {
-                    if (caretOffset == start + i)
-                        continue;
+                for (int i = 0; i < src.length(); ++i) {
+                    if (isMatch(src, i, jumpTargetChar)) {
+                        int off = start + i;
 
-					if (isMatch(src, i, jumpTargetChar)) {
-						int off = start + i;
-						if (off >= len) {
-							break;
-						}
+                        if ( /*char_is_at_caret_and_should_ignore =*/ caretOffset == off) {
+                            continue;
+                        }
 
-						drawNextCharAt(off, gc, st, marker);
-                        marker++;
-					}
-				}
-			}
+                        offsets.add(off);
+                    }
+                }
+
+                return offsets;
+            }
 
 			private boolean isMatch(String src, int i, char match) {
 				char c = src.charAt(i);
 				if (Character.toLowerCase(c) != Character.toLowerCase(match)) {
-                    return false;
-                }
+					return false;
+				}
 
 				if (i > 0) {
 					char prev = src.charAt(i - 1);
@@ -146,10 +146,22 @@ public class AceCommandHandler extends AbstractHandler {
 				return false;
 			}
 
+			private void draw_jump_target_markers(final StyledText st, final ISourceViewer sv, GC gc) {
+				List<Integer> offsets = get_offsets_of_char(st, sv);
 
-			private void drawNextCharAt(int offset, GC gc, StyledText st, char marker) {
+				char marker = 'a';
+                for (int i = 0; i < offsets.size() && marker <= 'z'; ++i) {
+					offsetForCharacter.put(marker, offsets.get(i));
+					++marker;
+				}
+
+				for (Map.Entry<Character, Integer> kv : offsetForCharacter.entrySet()) {
+					drawMarkerAt(kv.getValue(), gc, st, kv.getKey());
+				}
+			}
+			
+			private void drawMarkerAt(int offset, GC gc, StyledText st, char marker) {
 				String word = Character.toString(marker);
-				offsetForCharacter.put(marker, offset);
 
 				Rectangle bounds = st.getTextBounds(offset, offset);
 				gc.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_WHITE));
